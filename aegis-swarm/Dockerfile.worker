@@ -1,0 +1,35 @@
+# aegis-swarm worker image.
+#
+# REAL DEPLOYMENT NOTES
+# ---------------------
+# A production worker must contain real hashcat binaries. Use an image that
+# ships hashcat with OpenCL/CUDA runtime access to GPU devices, e.g. build on
+# top of an NVIDIA CUDA base image and install hashcat from
+# https://hashcat.net/hashcat/ (or `apt install hashcat` on Debian/Ubuntu),
+# then run the container with GPU passthrough:
+#
+#     docker run --gpus all -e AEGIS_STORE=redis://redis:6379 \
+#         -e AEGIS_BUS=nats://nats:4222 -e AEGIS_RUNNER=hashcat \
+#         aegis-swarm/worker --job <job-id> --hash-file /data/lab.hc22000
+#
+# The default image below is the portable/simulated variant: it compiles the
+# worker binary and defaults to AEGIS_RUNNER=sim for demos and CI. It has no
+# GPU support and must not be used for real cracking throughput.
+#
+# Authorized security-research use only. Never point this at captures you do
+# not own or lack written authorization to test.
+
+FROM golang:1.22-bookworm AS build
+WORKDIR /src
+COPY go.mod go.sum* ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/worker ./cmd/worker
+
+FROM debian:bookworm-slim
+# Uncomment for real hashcat deployments (CPU-only; GPU needs a CUDA base):
+# RUN apt-get update && apt-get install -y --no-install-recommends hashcat \
+#     && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/worker /usr/local/bin/worker
+ENV AEGIS_RUNNER=sim
+ENTRYPOINT ["worker"]

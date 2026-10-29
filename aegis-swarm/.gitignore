@@ -1,0 +1,14 @@
+# Built binaries
+bin/
+/orchestrator
+/worker
+
+# Go test/build artifacts
+*.test
+*.out
+coverage.txt
+
+# Local scratch
+*.hc22000
+*.potfile
+/tmp/

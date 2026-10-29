@@ -1,0 +1,46 @@
+# aegis-swarm — authorized security-research lab deployment.
+# Brings up Redis (state/queue), NATS (event bus), the orchestrator, and one
+# worker. Real WPA cracking requires the hashcat worker image (see
+# Dockerfile.worker) and authorized target captures.
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  nats:
+    image: nats:2-alpine
+    ports:
+      - "4222:4222"
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    depends_on:
+      - redis
+      - nats
+    environment:
+      AEGIS_STORE: redis://redis:6379
+      AEGIS_BUS: nats://nats:4222
+    ports:
+      - "8080:8080"
+    command: ["--addr", ":8080", "--store", "redis://redis:6379", "--bus", "nats://nats:4222"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      - redis
+      - nats
+      - orchestrator
+    environment:
+      AEGIS_ID: worker-1
+      AEGIS_STORE: redis://redis:6379
+      AEGIS_BUS: nats://nats:4222
+      AEGIS_RUNNER: sim
+    # Requires AEGIS_JOB (+ AEGIS_HASH_FILE for hashcat mode) to do work;
+    # override the command per engagement, e.g.:
+    #   command: ["--job", "<job-id>", "--hash-file", "/data/lab.hc22000"]
+    command: ["--job", "demo"]
